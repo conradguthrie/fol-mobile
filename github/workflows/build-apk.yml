@@ -3,24 +3,25 @@ name: Build Fast One Logistics APK
 on:
   workflow_dispatch:
   push:
-    paths:
-      - '*.zip'
-      - '.github/workflows/build-apk.yml'
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download project files
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Extract mobile project
         run: |
-          unzip -o Fast-One-Logistics-Mobile-Source-v1.zip
+          unzip -o Fast-One-Logistics-Mobile-Source-v1.zip -d mobile
+          find mobile -maxdepth 4 -type f | head -100
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -28,18 +29,26 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
 
       - name: Build Android APK
-        run: gradle -p FOL-Mobile-Starter/android assembleDebug
+        run: |
+          GRADLE_FILE=$(find mobile -name gradlew -type f | head -1)
+          if [ -n "$GRADLE_FILE" ]; then
+            chmod +x "$GRADLE_FILE"
+            cd "$(dirname "$GRADLE_FILE")"
+            ./gradlew assembleDebug
+          else
+            echo "ERROR: Gradle wrapper not found in the extracted project."
+            exit 1
+          fi
 
-      - name: Save APK
+      - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Fast-One-Logistics-APK
-          path: FOL-Mobile-Starter/android/app/build/outputs/apk/debug/app-debug.apk
+          path: mobile/**/*.apk
           if-no-files-found: error
           retention-days: 14
